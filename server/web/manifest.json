@@ -1,0 +1,9 @@
+{
+  "name": "SreenLinux",
+  "short_name": "SreenLinux",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#0A0A14",
+  "theme_color": "#0A0A14",
+  "icons": [{ "src": "/icon.png", "sizes": "192x192", "type": "image/png" }]
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SreenLinux</string>
+    <string name="tagline">Turn your Android into a Linux display</string>
+
+    <string name="hint_host">Host</string>
+    <string name="hint_port">Port</string>
+
+    <string name="action_connect">Connect</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_hide">Hide</string>
+
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connecting">Connecting to %1$s:%2$d…</string>
+    <string name="status_retrying">Connecting to %1$s:%2$d… (attempt %3$d)</string>
+    <string name="status_lost">%1$s\nRetrying in %2$.1f s…</string>
+    <string name="status_invalid_port">Invalid port</string>
+
+    <string name="info_connected">%1$d×%2$d · %3$s:%4$d</string>
+    <string name="fps_format">%.1f FPS</string>
+
+    <string name="help_text">1. On the PC: cd server &amp;&amp; ./start.sh\n2. Connect this device by USB (USB debugging on)\n3. Tap Connect\n\nTap = click · Long press = right click · Drag = drag\nTwo fingers: drag = scroll, tap = right click\nThree-finger tap or Back = menu</string>
+</resources>

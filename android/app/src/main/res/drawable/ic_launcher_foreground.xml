@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monitor + phone glyph on the 108dp adaptive-icon grid (content inside the 66dp safe zone). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- monitor frame -->
+    <path
+        android:strokeColor="#FF00D4FF"
+        android:strokeWidth="3.5"
+        android:fillColor="#00000000"
+        android:pathData="M31,34 L71,34 Q74,34 74,37 L74,63 Q74,66 71,66 L31,66 Q28,66 28,63 L28,37 Q28,34 31,34 Z" />
+    <!-- stand -->
+    <path android:fillColor="#FF00D4FF" android:pathData="M47,66 L55,66 L55,72 L47,72 Z" />
+    <path android:fillColor="#FF00D4FF"
+        android:pathData="M42,71 L60,71 Q62,71 62,73 Q62,75 60,75 L42,75 Q40,75 40,73 Q40,71 42,71 Z" />
+    <!-- phone body -->
+    <path
+        android:fillColor="#FF0A0A14"
+        android:strokeColor="#FF00D4FF"
+        android:strokeWidth="3.5"
+        android:pathData="M63.5,46 L78.5,46 Q82,46 82,49.5 L82,78.5 Q82,82 78.5,82 L63.5,82 Q60,82 60,78.5 L60,49.5 Q60,46 63.5,46 Z" />
+    <!-- phone screen + button -->
+    <path android:fillColor="#6E00D4FF" android:pathData="M65,52 L77,52 L77,72 L65,72 Z" />
+    <path android:fillColor="#FF00D4FF"
+        android:pathData="M71,75 m-2,0 a2,2 0,1 0,4 0 a2,2 0,1 0,-4 0" />
+</vector>

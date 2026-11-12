@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SreenLinux</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0A0A14">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.png">
+<style>
+  :root {
+    --bg: #0A0A14; --surface: #1A1A2E; --accent: #00D4FF; --text: #fff;
+    --muted: rgba(255,255,255,.7); --ok: #4CAF50; --warn: #FFC107; --err: #F44336;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block;
+           touch-action: none; background: #000; }
+  /* Off-screen text box that receives the phone's soft keyboard input */
+  #kbInput {
+    position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0;
+    font-size: 16px; border: 0; padding: 0; resize: none; caret-color: transparent;
+  }
+  #kbFab {
+    position: fixed; right: 12px; bottom: 12px; width: 44px; height: 44px; min-width: 0;
+    padding: 0; border-radius: 50%; font-size: 22px; line-height: 44px;
+    background: rgba(26,26,46,.55); color: #fff; opacity: .6;
+  }
+  #kbFab.on { background: var(--accent); color: var(--bg); opacity: 1; }
+  #keybar {
+    position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 6px; overflow-x: auto;
+    padding: 6px; padding-top: max(6px, env(safe-area-inset-top));
+    background: rgba(0,0,0,.75); scrollbar-width: none;
+  }
+  #keybar button {
+    min-width: 44px; padding: 8px 10px; flex: none; font-size: 14px;
+    background: var(--surface); color: var(--text);
+  }
+  #keybar button.on { background: var(--accent); color: var(--bg); }
+  .panel {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; padding: 24px; text-align: center; background: var(--bg);
+  }
+  .panel.translucent { background: rgba(10,10,20,.82); }
+  .hidden { display: none !important; }
+  h1 { margin: 0; font-weight: 300; font-size: 40px; color: var(--accent); }
+  .status { display: flex; align-items: center; gap: 10px; max-width: 420px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--warn); }
+  .dot.ok { background: var(--ok); } .dot.err { background: var(--err); }
+  button {
+    font: inherit; color: var(--bg); background: var(--accent); border: 0; border-radius: 6px;
+    padding: 12px 28px; min-width: 200px; cursor: pointer;
+  }
+  button.secondary { background: var(--surface); color: var(--text); min-width: 0; padding: 8px 16px; }
+  button.danger { background: var(--err); color: var(--text); min-width: 0; padding: 8px 16px; }
+  .help { color: var(--muted); font-size: 12px; line-height: 1.7; max-width: 440px; }
+  #bar {
+    position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top));
+    background: rgba(0,0,0,.6); font-size: 14px;
+  }
+  #bar .info { flex: 1; color: var(--muted); font-size: 12px; white-space: nowrap;
+               overflow: hidden; text-overflow: ellipsis; }
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.75); padding: 8px 16px; border-radius: 16px; font-size: 13px;
+    pointer-events: none; transition: opacity .4s;
+  }
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+
+<!-- Shown until connected -->
+<div id="connPanel" class="panel">
+  <h1>SreenLinux</h1>
+  <div class="status"><span id="connDot" class="dot"></span><span id="connText">Đang kết nối…</span></div>
+  <div class="help">
+    Máy tính: <code>cd server &amp;&amp; ./start.sh</code><br>
+    Cắm cáp USB (bật USB debugging) và chạy <code>adb reverse tcp:6100 tcp:6100</code><br><br>
+    Chạm = click · Giữ = click phải · Rê = kéo thả<br>
+    Hai ngón: vuốt = cuộn, chạm = click phải<br>
+    Nút ⌨ góc dưới phải = bàn phím<br>
+    Ba ngón chạm (hoặc Ctrl+Alt+B) = thanh công cụ
+  </div>
+</div>
+
+<!-- Shown once connected, until the first tap (fullscreen needs a user gesture) -->
+<div id="startPanel" class="panel translucent hidden">
+  <h1>SreenLinux</h1>
+  <button id="startBtn">Chạm để bắt đầu (toàn màn hình)</button>
+  <div class="help">Ba ngón chạm để mở thanh công cụ.</div>
+</div>
+
+<div id="bar" class="hidden">
+  <span id="barDot" class="dot ok"></span>
+  <span id="fps">0 FPS</span>
+  <span class="info" id="info"></span>
+  <button class="secondary" id="fabToggleBtn">Nút ⌨</button>
+  <button class="secondary" id="fsBtn">Toàn màn hình</button>
+  <button class="secondary" id="hideBtn">Ẩn</button>
+</div>
+
+<textarea id="kbInput" autocapitalize="off" autocomplete="off" autocorrect="off"
+          spellcheck="false" aria-label="Keyboard input"></textarea>
+<button id="kbFab" class="hidden" aria-label="Bàn phím">⌨</button>
+<div id="keybar" class="hidden">
+  <button data-mod="ffe3">Ctrl</button>
+  <button data-mod="ffe9">Alt</button>
+  <button data-mod="ffeb">Super</button>
+  <button data-mod="ffe1">Shift</button>
+  <button data-key="ff1b">Esc</button>
+  <button data-key="ff09">Tab</button>
+  <button data-key="ff51">←</button>
+  <button data-key="ff52">↑</button>
+  <button data-key="ff54">↓</button>
+  <button data-key="ff53">→</button>
+  <button data-key="ff0d">Enter</button>
+  <button data-key="ffff">Del</button>
+  <button data-key="ff50">Home</button>
+  <button data-key="ff57">End</button>
+  <button data-key="ff55">PgUp</button>
+  <button data-key="ff56">PgDn</button>
+  <button data-key="ffbe">F1</button>
+  <button data-key="ffc1">F4</button>
+  <button data-key="ffc2">F5</button>
+  <button data-key="ffc8">F11</button>
+  <button id="kbClose">✕</button>
+</div>
+
+<div id="toast" style="opacity:0"></div>
+
+<script>
+"use strict";
+(() => {
+  // ---- Protocol (see server/screen_server.py) ----
+  const MSG_TOUCH = 1, MSG_CLICK = 2, MSG_SCROLL = 3;
+  const DOWN = 0, MOVE = 1, UP = 2;
+  const BTN_LEFT = 1, BTN_MIDDLE = 2, BTN_RIGHT = 3;
+  const SC_UP = 0, SC_DOWN = 1, SC_LEFT = 2, SC_RIGHT = 3;
+
+  const TOUCH_SLOP = 8;          // CSS px
+  const LONG_PRESS_MS = 500;
+  const MULTI_TAP_MS = 550;
+  const SCROLL_STEP = 12;        // CSS px per wheel notch
+  const RETRY_MIN = 500, RETRY_MAX = 8000;
+
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("screen");
+  const ctx = canvas.getContext("2d", { alpha: false });
+
+  // ---- State ----
+  let ws = null, retryDelay = RETRY_MIN, retryTimer = null, connected = false;
+  let frameW = 0, frameH = 0;
+  let lastBitmap = null, pendingBlob = null, decoding = false;
+  let started = false, barVisible = false;
+  let fpsCount = 0, fpsT0 = performance.now();
+  let wakeLock = null;
+
+  // Mapping from CSS px to frame px (letterboxed, aspect preserved)
+  const map = { ox: 0, oy: 0, scale: 0 };
+
+  // ---- UI helpers ----
+  function setConn(text, kind) {
+    $("connText").textContent = text;
+    $("connDot").className = "dot" + (kind ? " " + kind : "");
+  }
+  let toastTimer = null;
+  function toast(text) {
+    const t = $("toast");
+    t.textContent = text; t.style.opacity = 1;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.style.opacity = 0), 1500);
+  }
+  function showBar(v) { barVisible = v; $("bar").classList.toggle("hidden", !v); }
+  function updatePanels() {
+    $("connPanel").classList.toggle("hidden", connected);
+    $("startPanel").classList.toggle("hidden", !connected || started);
+    const fab = $("kbFab");
+    fab.classList.toggle("hidden", !connected || !started ||
+                         (typeof fabEnabled !== "undefined" && !fabEnabled && !kbOpen));
+  }
+
+  // ---- Rendering ----
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(window.innerWidth * dpr);
+    canvas.height = Math.round(window.innerHeight * dpr);
+    computeMapping();
+    draw();
+  }
+  function computeMapping() {
+    if (!frameW || !frameH) return;
+    // Keep the picture below the key bar while the keyboard is open
+    const top = (typeof kbOpen !== "undefined" && kbOpen) ? $("keybar").offsetHeight : 0;
+    const w = window.innerWidth, h = Math.max(1, window.innerHeight - top);
+    map.scale = Math.min(w / frameW, h / frameH);
+    map.ox = (w - frameW * map.scale) / 2;
+    map.oy = top + (h - frameH * map.scale) / 2;
+  }
+  function draw() {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (!lastBitmap) return;
+    const dpr = canvas.width / window.innerWidth;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(lastBitmap, map.ox * dpr, map.oy * dpr,
+                  frameW * map.scale * dpr, frameH * map.scale * dpr);
+  }
+
+  function decodeBlob(blob) {
+    if (window.createImageBitmap) return createImageBitmap(blob);
+    return new Promise((resolve, reject) => {  // fallback for old browsers
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+
+  // Decode only the newest frame; drop any that arrive while busy.
+  function pump() {
+    if (decoding || !pendingBlob) return;
+    const blob = pendingBlob;
+    pendingBlob = null;
+    decoding = true;
+    decodeBlob(blob).then((bmp) => {
+      if (lastBitmap && lastBitmap.close) lastBitmap.close();
+      lastBitmap = bmp;
+      if (bmp.width !== frameW || bmp.height !== frameH) {
+        frameW = bmp.width; frameH = bmp.height;
+        computeMapping();
+        $("info").textContent = `${frameW}×${frameH} · ${location.host}`;
+      }
+      draw();
+      fpsCount++;
+    }).catch(() => {}).finally(() => { decoding = false; pump(); });
+  }
+
+  function tickFps() {
+    const now = performance.now();
+    if (now - fpsT0 >= 1000) {
+      $("fps").textContent = (fpsCount * 1000 / (now - fpsT0)).toFixed(1) + " FPS";
+      fpsCount = 0; fpsT0 = now;
+    }
+  }
+  setInterval(tickFps, 500);
+
+  // ---- Connection ----
+  function connect() {
+    clearTimeout(retryTimer);
+    if (ws) return;
+    setConn(`Đang kết nối tới ${location.host}…`, "");
+    const sock = new WebSocket(`ws://${location.host}/ws`);
+    sock.binaryType = "blob";
+    ws = sock;
+    sock.onmessage = (ev) => {
+      if (!connected) {
+        connected = true; retryDelay = RETRY_MIN;
+        updatePanels();
+      }
+      pendingBlob = ev.data;
+      pump();
+    };
+    sock.onclose = () => {
+      if (ws !== sock) return;
+      ws = null;
+      const wasConnected = connected;
+      connected = false;
+      resetGesture();
+      updatePanels();
+      if (document.hidden) return;  // reconnect when visible again
+      const d = retryDelay;
+      setConn((wasConnected ? "Mất kết nối" : "Không kết nối được server") +
+               ` — thử lại sau ${(d / 1000).toFixed(1)} s`, "err");
+      retryDelay = Math.min(retryDelay * 2, RETRY_MAX);
+      retryTimer = setTimeout(connect, d);
+    };
+  }
+  function disconnect() {
+    clearTimeout(retryTimer);
+    if (ws) { const s = ws; ws = null; s.close(); }
+    connected = false;
+    updatePanels();
+  }
+
+  function send(type, arg, cssX, cssY) {
+    if (!ws || ws.readyState !== 1 || !map.scale) return;
+    const x = Math.max(0, Math.min(frameW - 1, Math.round((cssX - map.ox) / map.scale)));
+    const y = Math.max(0, Math.min(frameH - 1, Math.round((cssY - map.oy) / map.scale)));
+    const b = new Uint8Array([type, arg, x >> 8, x & 255, y >> 8, y & 255]);
+    ws.send(b);
+  }
+
+  // ---- Touch gestures (same rules as the Android app) ----
+  let state = "IDLE";   // IDLE | PENDING | DRAGGING | SCROLLING | IGNORE
+  let downX = 0, downY = 0, lastX = 0, lastY = 0, startT = 0, maxTouches = 0;
+  let multiMoved = false, mStartX = 0, mStartY = 0, sLastX = 0, sLastY = 0, accX = 0, accY = 0;
+  let longTimer = null;
+
+  function centroid(list) {
+    let x = 0, y = 0;
+    for (const t of list) { x += t.clientX; y += t.clientY; }
+    return [x / list.length, y / list.length];
+  }
+  function resetGesture() {
+    clearTimeout(longTimer);
+    if (state === "DRAGGING") send(MSG_TOUCH, UP, lastX, lastY);
+    state = "IDLE";
+  }
+  function onLongPress() {
+    if (state !== "PENDING") return;
+    send(MSG_CLICK, BTN_RIGHT, downX, downY);
+    if (navigator.vibrate) navigator.vibrate(30);
+    state = "IGNORE";
+  }
+
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (!connected) return;
+    const n = e.touches.length;
+    maxTouches = Math.max(maxTouches, n);
+    if (n === 1) {
+      const t = e.touches[0];
+      state = "PENDING";
+      downX = lastX = t.clientX; downY = lastY = t.clientY;
+      startT = performance.now(); maxTouches = 1; multiMoved = false;
+      clearTimeout(longTimer);
+      longTimer = setTimeout(onLongPress, LONG_PRESS_MS);
+      return;
+    }
+    clearTimeout(longTimer);
+    if (state === "DRAGGING") {
+      send(MSG_TOUCH, UP, lastX, lastY);   // a second finger ends the drag
+      state = "IGNORE";
+    } else if (state === "PENDING" || state === "SCROLLING") {
+      state = "SCROLLING";
+      [mStartX, mStartY] = centroid(e.touches);
+      sLastX = mStartX; sLastY = mStartY; accX = accY = 0;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (!connected) return;
+    const t = e.touches[0];
+    const x = t.clientX, y = t.clientY;
+    if (state === "PENDING") {
+      if (Math.hypot(x - downX, y - downY) > TOUCH_SLOP) {
+        clearTimeout(longTimer);
+        state = "DRAGGING";
+        send(MSG_TOUCH, DOWN, downX, downY);
+        send(MSG_TOUCH, MOVE, x, y);
+      }
+    } else if (state === "DRAGGING") {
+      if (x !== lastX || y !== lastY) send(MSG_TOUCH, MOVE, x, y);
+    } else if (state === "SCROLLING" && e.touches.length >= 2) {
+      const [cx, cy] = centroid(e.touches);
+      if (!multiMoved && Math.hypot(cx - mStartX, cy - mStartY) > TOUCH_SLOP) multiMoved = true;
+      if (maxTouches <= 2) {
+        accX += cx - sLastX; accY += cy - sLastY;
+        sLastX = cx; sLastY = cy;
+        // Natural scrolling: content follows the fingers
+        while (accY >= SCROLL_STEP)  { send(MSG_SCROLL, SC_UP, cx, cy);    accY -= SCROLL_STEP; }
+        while (accY <= -SCROLL_STEP) { send(MSG_SCROLL, SC_DOWN, cx, cy);  accY += SCROLL_STEP; }
+        while (accX >= SCROLL_STEP)  { send(MSG_SCROLL, SC_LEFT, cx, cy);  accX -= SCROLL_STEP; }
+        while (accX <= -SCROLL_STEP) { send(MSG_SCROLL, SC_RIGHT, cx, cy); accX += SCROLL_STEP; }
+      }
+    }
+    lastX = x; lastY = y;
+  }, { passive: false });
+
+  function onTouchEnd(e) {
+    e.preventDefault();
+    if (e.touches.length > 0) {
+      if (state === "SCROLLING") [sLastX, sLastY] = centroid(e.touches);  // re-anchor
+      return;
+    }
+    clearTimeout(longTimer);
+    if (e.type === "touchcancel") { resetGesture(); return; }
+    const t = e.changedTouches[0];
+    const quick = performance.now() - startT < MULTI_TAP_MS;
+    if (state === "PENDING") {
+      send(MSG_CLICK, BTN_LEFT, downX, downY);
+    } else if (state === "DRAGGING") {
+      send(MSG_TOUCH, UP, t.clientX, t.clientY);
+    } else if ((state === "SCROLLING" && !multiMoved || state === "IGNORE") && quick) {
+      if (maxTouches >= 3) showBar(!barVisible);
+      else if (maxTouches === 2 && state === "SCROLLING") send(MSG_CLICK, BTN_RIGHT, downX, downY);
+    }
+    state = "IDLE";
+  }
+  canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+  canvas.addEventListener("touchcancel", onTouchEnd, { passive: false });
+
+  // ---- Mouse (handy when testing from a desktop browser) ----
+  let mouseDown = false, moveQueued = null;
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  canvas.addEventListener("mousedown", (e) => {
+    if (!connected) return;
+    if (e.button === 0) { mouseDown = true; send(MSG_TOUCH, DOWN, e.clientX, e.clientY); }
+    else if (e.button === 1) { e.preventDefault(); send(MSG_CLICK, BTN_MIDDLE, e.clientX, e.clientY); }
+    else if (e.button === 2) send(MSG_CLICK, BTN_RIGHT, e.clientX, e.clientY);
+  });
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 0 && mouseDown) { mouseDown = false; send(MSG_TOUCH, UP, e.clientX, e.clientY); }
+  });
+  canvas.addEventListener("mousemove", (e) => {
+    if (!connected) return;
+    if (!moveQueued) requestAnimationFrame(() => {
+      send(MSG_TOUCH, MOVE, moveQueued.x, moveQueued.y);
+      moveQueued = null;
+    });
+    moveQueued = { x: e.clientX, y: e.clientY };
+  });
+  let wheelAccX = 0, wheelAccY = 0;
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    if (!connected) return;
+    const unit = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1;
+    wheelAccY += e.deltaY * unit; wheelAccX += e.deltaX * unit;
+    const NOTCH = 100;
+    while (wheelAccY >= NOTCH)  { send(MSG_SCROLL, SC_DOWN, e.clientX, e.clientY);  wheelAccY -= NOTCH; }
+    while (wheelAccY <= -NOTCH) { send(MSG_SCROLL, SC_UP, e.clientX, e.clientY);    wheelAccY += NOTCH; }
+    while (wheelAccX >= NOTCH)  { send(MSG_SCROLL, SC_RIGHT, e.clientX, e.clientY); wheelAccX -= NOTCH; }
+    while (wheelAccX <= -NOTCH) { send(MSG_SCROLL, SC_LEFT, e.clientX, e.clientY);  wheelAccX += NOTCH; }
+  }, { passive: false });
+  // ---- Keyboard ----
+  // Message: [4][action 0 down / 1 up / 2 tap][keysym, 32-bit big-endian]
+  const MSG_KEY = 4, K_DOWN = 0, K_UP = 1, K_TAP = 2;
+  const KS_BACKSPACE = 0xff08, KS_RETURN = 0xff0d;
+  const MODS = { Control: 0xffe3, Alt: 0xffe9, Meta: 0xffeb, Shift: 0xffe1 };
+  const SPECIAL = {
+    Enter: 0xff0d, Backspace: 0xff08, Tab: 0xff09, Escape: 0xff1b, Delete: 0xffff,
+    Home: 0xff50, End: 0xff57, PageUp: 0xff55, PageDown: 0xff56, Insert: 0xff63,
+    ArrowLeft: 0xff51, ArrowUp: 0xff52, ArrowRight: 0xff53, ArrowDown: 0xff54,
+    ContextMenu: 0xff67, PrintScreen: 0xff61, CapsLock: 0xffe5,
+  };
+  for (let n = 1; n <= 12; n++) SPECIAL["F" + n] = 0xffbe + n - 1;
+
+  const kbInput = $("kbInput"), kbFab = $("kbFab"), keybar = $("keybar");
+  // Padding text so Backspace still produces an 'input' event when "empty"
+  const SENTINEL = "        ";
+  let kbOpen = false, prevText = SENTINEL, composing = false;
+  const sticky = new Set();  // latched modifiers from the key bar
+  let fabEnabled = true;
+  try { fabEnabled = localStorage.getItem("sreen.fab") !== "0"; } catch (_) {}
+
+  function sendKey(action, keysym) {
+    if (!ws || ws.readyState !== 1) return;
+    ws.send(new Uint8Array([MSG_KEY, action, (keysym >>> 24) & 255, (keysym >>> 16) & 255,
+                            (keysym >>> 8) & 255, keysym & 255]));
+  }
+  function charKeysym(ch) {
+    if (ch === "\n" || ch === "\r") return KS_RETURN;
+    if (ch === "\t") return SPECIAL.Tab;
+    const c = ch.codePointAt(0);
+    if ((c >= 0x20 && c <= 0x7e) || (c >= 0xa0 && c <= 0xff)) return c;  // Latin-1 keysyms
+    return 0x01000000 + c;                                                   // Unicode keysyms
+  }
+  function clearSticky() {
+    sticky.clear();
+    keybar.querySelectorAll("[data-mod]").forEach((b) => b.classList.remove("on"));
+  }
+  // Tap a key wrapped in held modifiers (latched key-bar modifiers + physical ones)
+  function tapKey(keysym, extraMods) {
+    const mods = [...new Set([...sticky, ...(extraMods || [])])];
+    for (const m of mods) sendKey(K_DOWN, m);
+    sendKey(K_TAP, keysym);
+    for (const m of mods.reverse()) sendKey(K_UP, m);
+    if (sticky.size) clearSticky();
+  }
+
+  // Soft keyboard: diff the hidden textarea, so autocorrect / composition
+  // (Gboard, Vietnamese input…) become Backspaces + the corrected text.
+  function resetInput() {
+    kbInput.value = SENTINEL;
+    prevText = SENTINEL;
+    try { kbInput.setSelectionRange(SENTINEL.length, SENTINEL.length); } catch (_) {}
+  }
+  function syncInput() {
+    const cur = kbInput.value;
+    let i = 0;
+    while (i < prevText.length && i < cur.length && prevText[i] === cur[i]) i++;
+    const removed = [...prevText.slice(i)].length;
+    for (let k = 0; k < removed; k++) tapKey(KS_BACKSPACE);
+    for (const ch of cur.slice(i)) tapKey(charKeysym(ch));
+    prevText = cur;
+    if (!composing && (cur.length < 4 || cur.length > 64 || cur.endsWith("\n"))) resetInput();
+  }
+  kbInput.addEventListener("compositionstart", () => { composing = true; });
+  kbInput.addEventListener("compositionend", () => { composing = false; syncInput(); });
+  kbInput.addEventListener("input", syncInput);
+
+  // Hardware keys (desktop keyboard, or special keys from the soft keyboard)
+  window.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.altKey && (e.key === "b" || e.key === "B")) {
+      e.preventDefault(); showBar(!barVisible); return;
+    }
+    if (!connected || e.isComposing || e.keyCode === 229) return;
+    if (e.key in MODS) return;  // modifiers are sent together with the key they modify
+    const mods = [];
+    if (e.ctrlKey) mods.push(MODS.Control);
+    if (e.altKey) mods.push(MODS.Alt);
+    if (e.metaKey) mods.push(MODS.Meta);
+    const inText = e.target === kbInput;
+    if (e.key in SPECIAL) {
+      // Enter / Backspace typed into the text box also arrive via 'input'
+      if (inText && !mods.length && (e.key === "Enter" || e.key === "Backspace")) return;
+      if (e.shiftKey) mods.push(MODS.Shift);
+      e.preventDefault();
+      tapKey(SPECIAL[e.key], mods);
+      return;
+    }
+    if ([...e.key].length === 1) {
+      if (inText && !mods.length) return;  // plain text → 'input' event
+      e.preventDefault();
+      if (mods.length && e.shiftKey) mods.push(MODS.Shift);
+      tapKey(charKeysym(mods.length ? e.key.toLowerCase() : e.key), mods);
+    }
+  });
+
+  function setKeyboard(open) {
+    kbOpen = open;
+    keybar.classList.toggle("hidden", !open);
+    kbFab.classList.toggle("on", open);
+    if (open) {
+      resetInput();
+      kbInput.focus();
+    } else {
+      kbInput.blur();
+      clearSticky();
+    }
+    resize();
+  }
+  // Keep focus (and the soft keyboard) on the text box when tapping buttons
+  for (const el of [kbFab, keybar]) el.addEventListener("mousedown", (e) => e.preventDefault());
+  kbFab.addEventListener("click", () => setKeyboard(!kbOpen));
+  keybar.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.id === "kbClose") { setKeyboard(false); return; }
+    if (b.dataset.mod) {
+      const k = parseInt(b.dataset.mod, 16);
+      if (sticky.has(k)) { sticky.delete(k); b.classList.remove("on"); }
+      else { sticky.add(k); b.classList.add("on"); }
+    } else if (b.dataset.key) {
+      tapKey(parseInt(b.dataset.key, 16));
+    }
+    if (kbOpen && document.activeElement !== kbInput) kbInput.focus();
+  });
+  function updateFabLabel() { $("fabToggleBtn").textContent = fabEnabled ? "Ẩn nút ⌨" : "Hiện nút ⌨"; }
+  $("fabToggleBtn").addEventListener("click", () => {
+    fabEnabled = !fabEnabled;
+    try { localStorage.setItem("sreen.fab", fabEnabled ? "1" : "0"); } catch (_) {}
+    updateFabLabel();
+    updatePanels();
+  });
+  updateFabLabel();
+
+  // Close our key bar when the soft keyboard is dismissed (e.g. Android Back)
+  let fullHeight = window.innerHeight, kbShrunk = false;
+  window.addEventListener("resize", () => {
+    if (!kbOpen) { fullHeight = Math.max(window.innerHeight, 1); kbShrunk = false; return; }
+    if (window.innerHeight < fullHeight - 100) kbShrunk = true;
+    else if (kbShrunk && window.innerHeight >= fullHeight - 40) setKeyboard(false);
+  });
+
+  // ---- Fullscreen + keep the screen awake ----
+  async function requestWakeLock() {
+    try {
+      if ("wakeLock" in navigator && !document.hidden) wakeLock = await navigator.wakeLock.request("screen");
+    } catch (_) { /* not allowed — ignore */ }
+  }
+  function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  async function toggleFullscreen() {
+    try {
+      if (isFullscreen()) {
+        await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else {
+        const el = document.documentElement;
+        await (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: "hide" });
+      }
+    } catch (_) {
+      toast("Trình duyệt không cho phép toàn màn hình");
+    }
+  }
+  $("startBtn").addEventListener("click", async () => {
+    started = true;
+    updatePanels();
+    if (!isFullscreen()) await toggleFullscreen();
+    requestWakeLock();
+  });
+  $("fsBtn").addEventListener("click", toggleFullscreen);
+  $("hideBtn").addEventListener("click", () => showBar(false));
+
+  // Pause while hidden (saves battery and host CPU), resume when visible.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      disconnect();
+    } else {
+      retryDelay = RETRY_MIN;
+      connect();
+      if (started) requestWakeLock();
+    }
+  });
+
+  window.addEventListener("resize", resize);
+  resize();
+  updatePanels();
+  connect();
+})();
+</script>
+</body>
+</html>

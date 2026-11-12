@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#FF1A1A2E</color>
+    <color name="colorPrimaryDark">#FF0F0F1A</color>
+    <color name="colorAccent">#FF00D4FF</color>
+    <color name="colorBackground">#FF0A0A14</color>
+    <color name="colorSurface">#FF1A1A2E</color>
+    <color name="colorOnSurface">#FFFFFFFF</color>
+    <color name="colorOverlay">#99000000</color>
+    <color name="colorStatusConnected">#FF4CAF50</color>
+    <color name="colorStatusDisconnected">#FFF44336</color>
+    <color name="colorStatusConnecting">#FFFFC107</color>
+    <color name="colorTextPrimary">#FFFFFFFF</color>
+    <color name="colorTextSecondary">#B3FFFFFF</color>
+</resources>
