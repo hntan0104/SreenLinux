@@ -1,4 +1,8 @@
-# 📱 SreenLinux - Biến Android thành Màn hình Linux
+<p align="center">
+  <img src="docs/images/banner.png" alt="SreenLinux — dùng máy tính bảng Android làm màn hình cho Linux qua cáp USB" width="100%">
+</p>
+
+# SreenLinux - Biến Android thành Màn hình Linux
 
 > **Sử dụng thiết bị Android làm màn hình hiển thị mở rộng cho Linux, kết nối qua cáp USB**
 >
@@ -8,6 +12,20 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux%20X11-orange.svg)]()
 [![Platform: Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green.svg)]()
 [![Python: 3.8+](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)]()
+
+---
+
+## 📸 Hình Ảnh (Screenshots)
+
+Ảnh chụp thật của bản web trên máy tính bảng 1920×1200, stream từ một desktop Linux demo.
+
+| Kết nối & bắt đầu | Desktop Linux trên máy tính bảng |
+|:---:|:---:|
+| <img src="docs/images/01-start.jpg" alt="Màn hình bắt đầu: chạm để vào chế độ toàn màn hình" width="420"> | <img src="docs/images/02-desktop.jpg" alt="Desktop Linux hiển thị toàn màn hình trên máy tính bảng" width="420"> |
+| Tự kết nối khi cắm cáp; chạm một lần để vào toàn màn hình | Hình ảnh 30 FPS, con trỏ chuột thật, cảm ứng như chuột |
+| **Bàn phím ảo** | **Thanh công cụ** (chạm 3 ngón) |
+| <img src="docs/images/03-keyboard.jpg" alt="Bàn phím: hàng phím Ctrl Alt Esc Tab mũi tên, gõ tiếng Việt có dấu" width="420"> | <img src="docs/images/04-toolbar.jpg" alt="Thanh công cụ hiển thị FPS, độ phân giải, nút toàn màn hình" width="420"> |
+| Gõ tiếng Việt có dấu, hàng phím Ctrl/Alt/Esc/Tab/mũi tên | FPS thực tế, độ phân giải, toàn màn hình, ẩn/hiện nút ⌨ |
 
 ---
 
